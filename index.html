@@ -371,8 +371,9 @@ function render(weather, city, lat, lon) {
   const hourly = weather.hourly;
 
   const now = new Date();
-  const curHourStr = now.toISOString().slice(0,13);
-  let hIdx = hourly.time.findIndex(t => t.startsWith(curHourStr));
+  // Build local time string to match Open-Meteo's timezone=auto timestamps
+  const localHourStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}`;
+  let hIdx = hourly.time.findIndex(t => t.startsWith(localHourStr));
   if (hIdx < 0) hIdx = 0;
   const hourSlice  = hourly.time.slice(hIdx, hIdx+24);
   const hourTemps  = hourly.temperature_2m.slice(hIdx, hIdx+24);
@@ -390,8 +391,11 @@ function render(weather, city, lat, lon) {
     <div id="hero">
       <div id="uv-badge">
         ${(() => {
-          const uv = (daily.uv_index_max || []).find(v => v > 0) ?? 0;
-          const label = (daily.uv_index_max?.[0] ?? 0) > 0 ? 'UV Peak' : 'UV Tomorrow';
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const todayIdx = (daily.time || []).findIndex(d => d === todayStr);
+          const uvArr = daily.uv_index_max || [];
+          const uv = uvArr.find((v, i) => i >= todayIdx && v > 0) ?? 0;
+          const label = (uvArr[todayIdx] ?? 0) > 0 ? 'UV Peak' : 'UV Tomorrow';
           return `<div id="uv-value">${Math.round(uv)}</div>
           <div id="uv-label-text">${label}</div>
           <div id="uv-caption">${uvRisk(uv)}</div>`;
