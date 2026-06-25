@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Weather" />
+  <title>Weather</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap');
+
+    /* ── Tokens ── */
+    :root {
+      --sky:    #EAF2FB;
+      --cloud:  #F7FAFD;
+      --ink:    #1A2433;
+      --muted:  #6B7A8D;
+      --accent: #3A7BD5;
+      --warm:   #E8734A;
+      --rule:   #D5E3F0;
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--sky);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 20px);
+    }
+
+    /* ── App shell ── */
+    #app {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-bottom: 24px;
+    }
+
+    /* ── Location bar ── */
+    #location-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0 4px;
+    }
+
+    #location-name {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    #refresh-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 4px;
+      line-height: 1;
+      transition: color .2s;
+    }
+    #refresh-btn:hover { color: var(--accent); }
+
+    /* ── Hero card ── */
+    #hero {
+      background: white;
+      border-radius: var(--radius);
+      padding: 32px 28px 28px;
+      box-shadow: 0 2px 16px rgba(58,123,213,.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(58,123,213,.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    #condition-icon {
+      font-size: 64px;
+      line-height: 1;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    #temp-display {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 86px;
+      line-height: 1;
+      letter-spacing: -.02em;
+      color: var(--ink);
+    }
+
+    #temp-unit {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 36px;
+      vertical-align: super;
+      color: var(--muted);
+    }
+
+    #condition-label {
+      font-size: 20px;
+      font-weight: 300;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    #feels-like {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    #hi-lo {
+      display: flex;
+      gap: 18px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .hi-lo-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .hi-lo-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .hi-lo-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 26px;
+      color: var(--ink);
+    }
+
+    /* ── Detail pills row ── */
+    #details {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .detail-pill {
+      background: white;
+      border-radius: 14px;
+      padding: 14px 12px;
+      box-shadow: 0 1px 8px rgba(58,123,213,.06);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
+      text-align: center;
+    }
+
+    .pill-icon { font-size: 22px; }
+
+    .pill-label {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .pill-val {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    /* ── Hourly strip ── */
+    #hourly-section { }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 4px 8px;
+    }
+
+    #hourly-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+    #hourly-scroll::-webkit-scrollbar { display: none; }
+
+    .hour-card {
+      background: white;
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 62px;
+      box-shadow: 0 1px 8px rgba(58,123,213,.06);
+      flex-shrink: 0;
+    }
+
+    .hour-card.now {
+      background: var(--accent);
+      color: white;
+    }
+
+    .hour-time {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .hour-card.now .hour-time { color: rgba(255,255,255,.7); }
+
+    .hour-icon { font-size: 20px; }
+
+    .hour-temp {
+      font-family: 'DM Serif Display', serif;
+      font-size: 17px;
+      color: var(--ink);
+    }
+    .hour-card.now .hour-temp { color: white; }
+
+    /* ── 7-day forecast ── */
+    #forecast-section { }
+
+    #forecast-list {
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: 0 1px 8px rgba(58,123,213,.06);
+      overflow: hidden;
+    }
+
+    .forecast-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .forecast-row:last-child { border-bottom: none; }
+
+    .forecast-day {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--ink);
+    }
+    .forecast-row.today .forecast-day { font-weight: 500; color: var(--accent); }
+
+    .forecast-icon { font-size: 22px; }
+
+    .forecast-lo {
+      font-size: 14px;
+      color: var(--muted);
+      text-align: right;
+      min-width: 28px;
+    }
+
+    .forecast-hi {
+      font-family: 'DM Serif Display', serif;
+      font-size: 18px;
+      color: var(--ink);
+      text-align: right;
+      min-width: 36px;
+    }
+
+    /* ── States ── */
+    #loading, #error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 16px;
+      text-align: center;
+      padding: 32px;
+    }
+
+    #loading-icon {
+      font-size: 48px;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .state-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 26px;
+      color: var(--ink);
+    }
+
+    .state-sub {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 280px;
+    }
+
+    .retry-btn {
+      margin-top: 8px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 100px;
+      padding: 12px 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    /* ── Updated time ── */
+    #updated {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding-top: 4px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="loading">
+    <div id="loading-icon">🌤</div>
+    <div class="state-title">Finding your weather</div>
+    <div class="state-sub">Allow location access when prompted.</div>
+  </div>
+</div>
+
+<script>
+const WMO = {
+  0:  { label: 'Clear',           icon: '☀️' },
+  1:  { label: 'Mostly Clear',    icon: '🌤' },
+  2:  { label: 'Partly Cloudy',   icon: '⛅️' },
+  3:  { label: 'Overcast',        icon: '☁️' },
+  45: { label: 'Foggy',           icon: '🌫' },
+  48: { label: 'Icy Fog',         icon: '🌫' },
+  51: { label: 'Light Drizzle',   icon: '🌦' },
+  53: { label: 'Drizzle',         icon: '🌦' },
+  55: { label: 'Heavy Drizzle',   icon: '🌧' },
+  61: { label: 'Light Rain',      icon: '🌧' },
+  63: { label: 'Rain',            icon: '🌧' },
+  65: { label: 'Heavy Rain',      icon: '🌧' },
+  71: { label: 'Light Snow',      icon: '🌨' },
+  73: { label: 'Snow',            icon: '❄️' },
+  75: { label: 'Heavy Snow',      icon: '❄️' },
+  77: { label: 'Snow Grains',     icon: '🌨' },
+  80: { label: 'Light Showers',   icon: '🌦' },
+  81: { label: 'Showers',         icon: '🌧' },
+  82: { label: 'Heavy Showers',   icon: '⛈' },
+  85: { label: 'Snow Showers',    icon: '🌨' },
+  86: { label: 'Heavy Snow Showers', icon: '❄️' },
+  95: { label: 'Thunderstorm',    icon: '⛈' },
+  96: { label: 'Thunderstorm',    icon: '⛈' },
+  99: { label: 'Thunderstorm',    icon: '⛈' },
+};
+
+function wmo(code) {
+  return WMO[code] || { label: 'Unknown', icon: '🌡' };
+}
+
+function fmtTemp(c) {
+  return Math.round(c * 9/5 + 32);
+}
+
+function fmtHour(iso) {
+  const d = new Date(iso);
+  const h = d.getHours();
+  if (h === 0) return '12a';
+  if (h === 12) return '12p';
+  return h < 12 ? `${h}a` : `${h-12}p`;
+}
+
+function fmtDay(iso, isToday) {
+  if (isToday) return 'Today';
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const d = await r.json();
+    return d.address?.city || d.address?.town || d.address?.village || d.address?.county || 'Your Location';
+  } catch { return 'Your Location'; }
+}
+
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+    + `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation_probability`
+    + `&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min`
+    + `&temperature_unit=celsius&wind_speed_unit=mph&timezone=auto&forecast_days=7`;
+  const r = await fetch(url);
+  return r.json();
+}
+
+function render(data, city) {
+  const app = document.getElementById('app');
+  const cur = data.current;
+  const daily = data.daily;
+  const hourly = data.hourly;
+
+  // Find current hour index
+  const now = new Date();
+  const curHourStr = now.toISOString().slice(0,13);
+  let hIdx = hourly.time.findIndex(t => t.startsWith(curHourStr));
+  if (hIdx < 0) hIdx = 0;
+  const hourSlice = hourly.time.slice(hIdx, hIdx + 24);
+  const hourTemps = hourly.temperature_2m.slice(hIdx, hIdx + 24);
+  const hourCodes = hourly.weather_code.slice(hIdx, hIdx + 24);
+
+  const cond = wmo(cur.weather_code);
+
+  const updatedTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  app.innerHTML = `
+    <div id="location-bar">
+      <div id="location-name">📍 ${city}</div>
+      <button id="refresh-btn" title="Refresh" onclick="init()">↻</button>
+    </div>
+
+    <div id="hero">
+      <span id="condition-icon">${cond.icon}</span>
+      <div>
+        <span id="temp-display">${fmtTemp(cur.temperature_2m)}</span><span id="temp-unit">°F</span>
+      </div>
+      <div id="condition-label">${cond.label}</div>
+      <div id="feels-like">Feels like ${fmtTemp(cur.apparent_temperature)}°</div>
+      <div id="hi-lo">
+        <div class="hi-lo-item">
+          <div class="hi-lo-label">High</div>
+          <div class="hi-lo-val">${fmtTemp(daily.temperature_2m_max[0])}°</div>
+        </div>
+        <div class="hi-lo-item">
+          <div class="hi-lo-label">Low</div>
+          <div class="hi-lo-val">${fmtTemp(daily.temperature_2m_min[0])}°</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="details">
+      <div class="detail-pill">
+        <div class="pill-icon">💧</div>
+        <div class="pill-label">Humidity</div>
+        <div class="pill-val">${cur.relative_humidity_2m}%</div>
+      </div>
+      <div class="detail-pill">
+        <div class="pill-icon">💨</div>
+        <div class="pill-label">Wind</div>
+        <div class="pill-val">${Math.round(cur.wind_speed_10m)} mph</div>
+      </div>
+      <div class="detail-pill">
+        <div class="pill-icon">☂️</div>
+        <div class="pill-label">Rain</div>
+        <div class="pill-val">${cur.precipitation_probability ?? 0}%</div>
+      </div>
+    </div>
+
+    <div id="hourly-section">
+      <div class="section-title">Today, hour by hour</div>
+      <div id="hourly-scroll">
+        ${hourSlice.map((t, i) => `
+          <div class="hour-card ${i === 0 ? 'now' : ''}">
+            <div class="hour-time">${i === 0 ? 'Now' : fmtHour(t)}</div>
+            <div class="hour-icon">${wmo(hourCodes[i]).icon}</div>
+            <div class="hour-temp">${fmtTemp(hourTemps[i])}°</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div id="forecast-section">
+      <div class="section-title">7-Day Forecast</div>
+      <div id="forecast-list">
+        ${daily.time.map((d, i) => `
+          <div class="forecast-row ${i === 0 ? 'today' : ''}">
+            <div class="forecast-day">${fmtDay(d, i === 0)}</div>
+            <div class="forecast-icon">${wmo(daily.weather_code[i]).icon}</div>
+            <div class="forecast-lo">${fmtTemp(daily.temperature_2m_min[i])}°</div>
+            <div class="forecast-hi">${fmtTemp(daily.temperature_2m_max[i])}°</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div id="updated">Updated ${updatedTime}</div>
+  `;
+}
+
+function showError(msg) {
+  document.getElementById('app').innerHTML = `
+    <div id="error">
+      <div style="font-size:48px">🌧</div>
+      <div class="state-title">Couldn't load weather</div>
+      <div class="state-sub">${msg}</div>
+      <button class="retry-btn" onclick="init()">Try Again</button>
+    </div>
+  `;
+}
+
+async function init() {
+  document.getElementById('app').innerHTML = `
+    <div id="loading">
+      <div id="loading-icon">🌤</div>
+      <div class="state-title">Loading weather…</div>
+      <div class="state-sub"></div>
+    </div>`;
+
+  if (!navigator.geolocation) {
+    showError('Your browser doesn\'t support location services.');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const { latitude: lat, longitude: lon } = pos.coords;
+      const [data, city] = await Promise.all([
+        fetchWeather(lat, lon),
+        reverseGeocode(lat, lon)
+      ]);
+      render(data, city);
+    } catch (e) {
+      showError('Weather data couldn\'t be fetched. Check your connection and try again.');
+    }
+  }, err => {
+    showError('Location access was denied. Enable it in Settings → Safari → Location to use this app.');
+  }, { timeout: 10000 });
+}
+
+init();
+</script>
+</body>
+</html>
