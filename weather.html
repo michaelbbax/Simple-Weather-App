@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Weather" />
+  <title>Weather</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap');
+
+    :root {
+      --sky:    #EAF2FB;
+      --ink:    #1A2433;
+      --muted:  #6B7A8D;
+      --accent: #3A7BD5;
+      --rule:   #D5E3F0;
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--sky);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 20px);
+    }
+
+    #app {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-bottom: 32px;
+    }
+
+    /* Location bar */
+    #location-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0 4px;
+    }
+    #location-name { font-size: 15px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    #refresh-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 20px; padding: 4px; transition: color .2s; }
+    #refresh-btn:hover { color: var(--accent); }
+
+    /* Hero */
+    #hero {
+      background: white;
+      border-radius: var(--radius);
+      padding: 32px 28px 28px;
+      box-shadow: 0 2px 16px rgba(58,123,213,.08);
+      position: relative;
+      overflow: hidden;
+    }
+    #hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(58,123,213,.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    #condition-icon { font-size: 64px; line-height: 1; margin-bottom: 8px; display: block; }
+    #temp-display { font-family: 'DM Serif Display', Georgia, serif; font-size: 86px; line-height: 1; letter-spacing: -.02em; }
+    #temp-unit { font-family: 'DM Serif Display', Georgia, serif; font-size: 36px; vertical-align: super; color: var(--muted); }
+    #condition-label { font-size: 20px; font-weight: 300; color: var(--muted); margin-top: 4px; }
+    #feels-like { font-size: 14px; color: var(--muted); margin-top: 6px; }
+    #hi-lo { display: flex; gap: 18px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--rule); }
+    .hi-lo-item { display: flex; flex-direction: column; gap: 2px; }
+    .hi-lo-label { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .hi-lo-val { font-family: 'DM Serif Display', serif; font-size: 26px; }
+
+    /* Pills */
+    #details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .detail-pill {
+      background: white; border-radius: 14px; padding: 14px 12px;
+      box-shadow: 0 1px 8px rgba(58,123,213,.06);
+      display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center;
+    }
+    .pill-icon { font-size: 22px; }
+    .pill-label { font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .pill-val { font-size: 15px; font-weight: 500; }
+
+    /* Section title */
+    .section-title { font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 0 4px 8px; }
+
+    /* Hourly */
+    #hourly-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+    #hourly-scroll::-webkit-scrollbar { display: none; }
+    .hour-card {
+      background: white; border-radius: 14px; padding: 12px 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      min-width: 62px; box-shadow: 0 1px 8px rgba(58,123,213,.06); flex-shrink: 0;
+    }
+    .hour-card.now { background: var(--accent); }
+    .hour-time { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .hour-card.now .hour-time { color: rgba(255,255,255,.7); }
+    .hour-icon { font-size: 20px; }
+    .hour-temp { font-family: 'DM Serif Display', serif; font-size: 17px; }
+    .hour-card.now .hour-temp { color: white; }
+
+    /* 7-day */
+    #forecast-list { background: white; border-radius: var(--radius); box-shadow: 0 1px 8px rgba(58,123,213,.06); overflow: hidden; }
+    .forecast-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+    .forecast-row:last-child { border-bottom: none; }
+    .forecast-day { font-size: 15px; }
+    .forecast-row.today .forecast-day { font-weight: 500; color: var(--accent); }
+    .forecast-icon { font-size: 22px; }
+    .forecast-lo { font-size: 14px; color: var(--muted); text-align: right; min-width: 28px; }
+    .forecast-hi { font-family: 'DM Serif Display', serif; font-size: 18px; text-align: right; min-width: 36px; }
+
+    /* Radar */
+    #radar-card { background: white; border-radius: var(--radius); box-shadow: 0 1px 8px rgba(58,123,213,.06); overflow: hidden; }
+    #radar-map { width: 100%; height: 280px; background: #dce8f5; }
+    #radar-controls { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--rule); }
+    #radar-play-btn {
+      background: var(--accent); color: white; border: none; border-radius: 50%;
+      width: 36px; height: 36px; font-size: 14px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #radar-timeline { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; position: relative; }
+    #radar-progress { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .1s; }
+    #radar-time { font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 48px; text-align: right; }
+
+    /* Loading / error */
+    #loading-screen, #error-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 70vh; gap: 16px; text-align: center; padding: 32px;
+    }
+    .state-icon { font-size: 48px; }
+    .spinning { animation: spin 2s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .state-title { font-family: 'DM Serif Display', serif; font-size: 26px; }
+    .state-sub { font-size: 15px; color: var(--muted); line-height: 1.5; max-width: 280px; }
+    .retry-btn {
+      margin-top: 8px; background: var(--accent); color: white; border: none;
+      border-radius: 100px; padding: 12px 28px; font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 500; cursor: pointer;
+    }
+
+    #updated { text-align: center; font-size: 12px; color: var(--muted); padding-top: 4px; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="loading-screen">
+    <div class="state-icon spinning">🌤</div>
+    <div class="state-title">Finding your weather</div>
+    <div class="state-sub">Allow location access when prompted.</div>
+  </div>
+</div>
+
+<script>
+/* ── Constants ── */
+const WMO = {
+  0:{l:'Clear',i:'☀️'},1:{l:'Mostly Clear',i:'🌤'},2:{l:'Partly Cloudy',i:'⛅️'},
+  3:{l:'Overcast',i:'☁️'},45:{l:'Foggy',i:'🌫'},48:{l:'Icy Fog',i:'🌫'},
+  51:{l:'Light Drizzle',i:'🌦'},53:{l:'Drizzle',i:'🌦'},55:{l:'Heavy Drizzle',i:'🌧'},
+  61:{l:'Light Rain',i:'🌧'},63:{l:'Rain',i:'🌧'},65:{l:'Heavy Rain',i:'🌧'},
+  71:{l:'Light Snow',i:'🌨'},73:{l:'Snow',i:'❄️'},75:{l:'Heavy Snow',i:'❄️'},
+  77:{l:'Snow Grains',i:'🌨'},80:{l:'Light Showers',i:'🌦'},81:{l:'Showers',i:'🌧'},
+  82:{l:'Heavy Showers',i:'⛈'},85:{l:'Snow Showers',i:'🌨'},86:{l:'Heavy Snow Showers',i:'❄️'},
+  95:{l:'Thunderstorm',i:'⛈'},96:{l:'Thunderstorm',i:'⛈'},99:{l:'Thunderstorm',i:'⛈'}
+};
+const wmo = c => WMO[c] || {l:'Unknown',i:'🌡'};
+const F = c => Math.round(c * 9/5 + 32);
+const fmtHour = iso => { const h = new Date(iso).getHours(); if(h===0)return'12a'; if(h===12)return'12p'; return h<12?`${h}a`:`${h-12}p`; };
+const fmtDay = (iso, today) => today ? 'Today' : new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
+
+/* ── Radar state (module-level so refresh doesn't leak) ── */
+let _map = null, _frames = [], _layers = [], _idx = 0, _timer = null, _playing = false;
+
+function destroyRadar() {
+  if (_timer) { clearInterval(_timer); _timer = null; }
+  if (_map) { _map.remove(); _map = null; }
+  _frames = []; _layers = []; _idx = 0; _playing = false;
+}
+
+/* ── Data fetching ── */
+async function getCity(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const d = await r.json();
+    return d.address?.city || d.address?.town || d.address?.village || d.address?.county || 'Your Location';
+  } catch { return 'Your Location'; }
+}
+
+async function getWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+    + `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation_probability`
+    + `&hourly=temperature_2m,weather_code`
+    + `&daily=weather_code,temperature_2m_max,temperature_2m_min`
+    + `&temperature_unit=celsius&wind_speed_unit=mph&timezone=auto&forecast_days=7`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Weather fetch failed');
+  return r.json();
+}
+
+async function getRadarFrames() {
+  const r = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+  if (!r.ok) throw new Error('Radar fetch failed');
+  const d = await r.json();
+  return (d.radar?.past || []).slice(-6);
+}
+
+/* ── Radar player ── */
+function showFrame(idx) {
+  _layers.forEach((l, i) => l.setOpacity(i === idx ? 0.6 : 0));
+  _idx = idx;
+  const prog = document.getElementById('radar-progress');
+  const timeEl = document.getElementById('radar-time');
+  if (prog) prog.style.width = `${((idx + 1) / _layers.length) * 100}%`;
+  if (timeEl && _frames[idx]) {
+    const d = new Date(_frames[idx].time * 1000);
+    timeEl.textContent = d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+  }
+}
+
+function playRadar() {
+  if (_timer) clearInterval(_timer);
+  _playing = true;
+  syncPlayBtn();
+  _timer = setInterval(() => showFrame((_idx + 1) % _layers.length), 600);
+}
+
+function pauseRadar() {
+  if (_timer) { clearInterval(_timer); _timer = null; }
+  _playing = false;
+  syncPlayBtn();
+}
+
+function syncPlayBtn() {
+  const btn = document.getElementById('radar-play-btn');
+  if (btn) btn.textContent = _playing ? '⏸' : '▶';
+}
+
+window.toggleRadar = () => _playing ? pauseRadar() : playRadar();
+
+async function initRadar(lat, lon) {
+  destroyRadar();
+
+  _map = L.map('radar-map', { center:[lat,lon], zoom:7, zoomControl:false });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19
+  }).addTo(_map);
+
+  L.circleMarker([lat,lon], {radius:6, color:'#3A7BD5', fillColor:'#3A7BD5', fillOpacity:1, weight:2}).addTo(_map);
+
+  try {
+    _frames = await getRadarFrames();
+    _layers = _frames.map(frame =>
+      L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${frame.time}/256/{z}/{x}/{y}/2/1_1.png`,
+        {opacity:0, tileSize:256, zIndex:10, attribution:'© RainViewer'}).addTo(_map)
+    );
+    if (_layers.length) { showFrame(_layers.length - 1); playRadar(); }
+  } catch(e) {
+    console.warn('Radar unavailable:', e);
+    const timeEl = document.getElementById('radar-time');
+    if (timeEl) timeEl.textContent = 'N/A';
+  }
+}
+
+/* ── Main render ── */
+function render(weather, city, lat, lon) {
+  const cur = weather.current;
+  const daily = weather.daily;
+  const hourly = weather.hourly;
+
+  const now = new Date();
+  const curHourStr = now.toISOString().slice(0,13);
+  let hIdx = hourly.time.findIndex(t => t.startsWith(curHourStr));
+  if (hIdx < 0) hIdx = 0;
+  const hourSlice  = hourly.time.slice(hIdx, hIdx+24);
+  const hourTemps  = hourly.temperature_2m.slice(hIdx, hIdx+24);
+  const hourCodes  = hourly.weather_code.slice(hIdx, hIdx+24);
+
+  const cond = wmo(cur.weather_code);
+  const updatedTime = now.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+
+  document.getElementById('app').innerHTML = `
+    <div id="location-bar">
+      <div id="location-name">📍 ${city}</div>
+      <button id="refresh-btn" onclick="init()" title="Refresh">↻</button>
+    </div>
+
+    <div id="hero">
+      <span id="condition-icon">${cond.i}</span>
+      <div>
+        <span id="temp-display">${F(cur.temperature_2m)}</span><span id="temp-unit">°F</span>
+      </div>
+      <div id="condition-label">${cond.l}</div>
+      <div id="feels-like">Feels like ${F(cur.apparent_temperature)}°</div>
+      <div id="hi-lo">
+        <div class="hi-lo-item">
+          <div class="hi-lo-label">High</div>
+          <div class="hi-lo-val">${F(daily.temperature_2m_max[0])}°</div>
+        </div>
+        <div class="hi-lo-item">
+          <div class="hi-lo-label">Low</div>
+          <div class="hi-lo-val">${F(daily.temperature_2m_min[0])}°</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="details">
+      <div class="detail-pill">
+        <div class="pill-icon">💧</div>
+        <div class="pill-label">Humidity</div>
+        <div class="pill-val">${cur.relative_humidity_2m}%</div>
+      </div>
+      <div class="detail-pill">
+        <div class="pill-icon">💨</div>
+        <div class="pill-label">Wind</div>
+        <div class="pill-val">${Math.round(cur.wind_speed_10m)} mph</div>
+      </div>
+      <div class="detail-pill">
+        <div class="pill-icon">☂️</div>
+        <div class="pill-label">Rain</div>
+        <div class="pill-val">${cur.precipitation_probability ?? 0}%</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Today, hour by hour</div>
+      <div id="hourly-scroll">
+        ${hourSlice.map((t,i) => `
+          <div class="hour-card ${i===0?'now':''}">
+            <div class="hour-time">${i===0?'Now':fmtHour(t)}</div>
+            <div class="hour-icon">${wmo(hourCodes[i]).i}</div>
+            <div class="hour-temp">${F(hourTemps[i])}°</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">7-Day Forecast</div>
+      <div id="forecast-list">
+        ${daily.time.map((d,i) => `
+          <div class="forecast-row ${i===0?'today':''}">
+            <div class="forecast-day">${fmtDay(d,i===0)}</div>
+            <div class="forecast-icon">${wmo(daily.weather_code[i]).i}</div>
+            <div class="forecast-lo">${F(daily.temperature_2m_min[i])}°</div>
+            <div class="forecast-hi">${F(daily.temperature_2m_max[i])}°</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Radar</div>
+      <div id="radar-card">
+        <div id="radar-map"></div>
+        <div id="radar-controls">
+          <button id="radar-play-btn" onclick="toggleRadar()">⏸</button>
+          <div id="radar-timeline"><div id="radar-progress"></div></div>
+          <div id="radar-time">--:--</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="updated">Updated ${updatedTime}</div>
+  `;
+
+  // Radar initializes after weather HTML is in the DOM
+  setTimeout(() => initRadar(lat, lon), 100);
+}
+
+function showError(msg) {
+  document.getElementById('app').innerHTML = `
+    <div id="error-screen">
+      <div class="state-icon">🌧</div>
+      <div class="state-title">Couldn't load weather</div>
+      <div class="state-sub">${msg}</div>
+      <button class="retry-btn" onclick="init()">Try Again</button>
+    </div>`;
+}
+
+/* ── Entry point ── */
+async function init() {
+  destroyRadar();
+  document.getElementById('app').innerHTML = `
+    <div id="loading-screen">
+      <div class="state-icon spinning">🌤</div>
+      <div class="state-title">Loading weather…</div>
+    </div>`;
+
+  if (!navigator.geolocation) { showError("Location not supported by this browser."); return; }
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const {latitude: lat, longitude: lon} = pos.coords;
+      const [weather, city] = await Promise.all([getWeather(lat, lon), getCity(lat, lon)]);
+      render(weather, city, lat, lon);
+    } catch(e) {
+      console.error(e);
+      showError('Could not fetch weather data. Check your connection and try again.');
+    }
+  }, err => {
+    showError('Location access was denied. Enable it in Settings → Safari → Location.');
+  }, {timeout: 12000});
+}
+
+init();
+</script>
+</body>
+</html>
